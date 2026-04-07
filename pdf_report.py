@@ -44,8 +44,8 @@ styles = {
         "normal",
         parent=base_styles["Normal"],
         fontName="DejaVu",
-        fontSize=8,
-        leading=10,
+        fontSize=10,
+        leading=12,
     ),
     "heading": ParagraphStyle(
         "heading",
@@ -61,6 +61,15 @@ styles = {
         fontSize=9,
         leading=11,
     ),
+    "centered": ParagraphStyle(
+        "centered",
+        parent=base_styles["Normal"],
+        fontName="DejaVu",
+        fontSize=10,
+        leading=12,
+        alignment=TA_CENTER,
+    ),
+
 }
 
 PAGE_WIDTH = 170 * mm
@@ -162,87 +171,113 @@ def render_section(elements, section):
 
 
 def build_stats_chart(stats):
-    """Создает график с развернутыми подписями осей"""
     if not stats:
         return None
 
     from matplotlib import font_manager
+    import matplotlib.pyplot as plt
+    import io
+
+    # 1. Настройка шрифтов (проверьте правильность пути)
     font_path = "fonts/DejaVuSans.ttf"
     font_prop = font_manager.FontProperties(fname=font_path)
     
     categories = list(stats.keys())
     values = list(stats.values())
 
-    # Немного увеличим высоту фигуры, чтобы влезли развернутые надписи
-    plt.figure(figsize=(8, 5)) 
+    # 2. Устанавливаем размер фигуры. 
+    # Для ширины 160мм (~6.3 дюйма) ставим figsize=(8, 4) или (8, 5)
+    fig, ax = plt.subplots(figsize=(8, 4.5)) 
     
-    bars = plt.bar(categories, values, color='#FF9999', edgecolor='none', alpha=0.8)
+    bars = ax.bar(categories, values, color='#FF9999', edgecolor='none', alpha=0.8)
 
-    plt.title("Статистика обнаруженных нарушений по категориям", fontproperties=font_prop, fontsize=12, pad=20)
-    plt.ylabel("Количество обнаружений", fontproperties=font_prop, fontsize=9)
+    ax.set_title("Статистика обнаруженных нарушений по категориям", 
+                 fontproperties=font_prop, fontsize=12, pad=20)
+    ax.set_ylabel("Количество обнаружений", fontproperties=font_prop, fontsize=9)
     
-    # --- МАГИЯ ЗДЕСЬ ---
-    # rotation=45 — наклон
-    # ha='right' — выравнивание конца текста по центру столбца
-    plt.xticks(
-        fontproperties=font_prop, 
-        fontsize=8, 
-        rotation=45, 
-        ha='right'
-    )
-    # -------------------
-    
+    plt.xticks(fontproperties=font_prop, fontsize=8, rotation=45, ha='right')
     plt.yticks(fontsize=8)
-    plt.gca().yaxis.grid(True, linestyle='-', alpha=0.2)
-    plt.gca().set_axisbelow(True)
     
-    for spine in plt.gca().spines.values():
+    ax.yaxis.grid(True, linestyle='-', alpha=0.1)
+    ax.set_axisbelow(True)
+    
+    # Убираем лишние рамки
+    for spine in ax.spines.values():
         spine.set_visible(False)
 
+    # Подписи над барами
     for bar in bars:
         height = bar.get_height()
-        plt.text(bar.get_x() + bar.get_width()/2., height + 1,
+        ax.text(bar.get_x() + bar.get_width()/2., height + 0.5,
                  f'{int(height)}', ha='center', va='bottom', 
                  fontproperties=font_prop, fontsize=8, fontweight='bold')
 
+    # 3. Сохранение с ВЫСОКИМ DPI
     img_buffer = io.BytesIO()
-    # bbox_inches='tight' критически важен, чтобы развернутые надписи не обрезались
-    plt.savefig(img_buffer, format='png', dpi=300, bbox_inches='tight')
+    # tight_layout помогает избежать обрезки полей до сохранения
+    plt.tight_layout()
+    # Используем 300-600 DPI для типографского качества
+    plt.savefig(img_buffer, format='png', dpi=400, bbox_inches='tight', transparent=True)
     img_buffer.seek(0)
-    plt.close()
+    plt.close(fig)
 
-    # Немного увеличим высоту объекта Image в PDF, раз график стал выше
-    return Image(img_buffer, width=160*mm, height=85*mm)
+    # 4. РАСЧЕТ РАЗМЕРОВ ДЛЯ REPORTLAB
+    # Мы задаем ширину, а высоту вычисляем автоматически, чтобы не было искажений
+    desired_width = 160 * mm
+    # Получаем соотношение сторон из сохраненного изображения (опционально) или задаем константу
+    # Чтобы график был "по ширине", используем hAlign='CENTER'
+    img = Image(img_buffer)
+    img.drawWidth = desired_width
+    img.drawHeight = desired_width * 0.55  # Соотношение сторон примерно 16:9
+    img.hAlign = 'CENTER'
+    
+    return img
 
 # =======================
 # ГЕНЕРАЦИЯ PDF
 # =======================
 
+def add_page_number(canvas, doc):
+    page_num = canvas.getPageNumber()
+    text = f"Страница {page_num}"
+    
+    canvas.setFont("DejaVu", 9)
+    
+    width, height = A4
+    canvas.drawCentredString(width / 2, 10 * mm, text)
+
+
 def generate_pdf(filename, sections, source_info=None, stats: dict[str, int]=None):
     doc = SimpleDocTemplate(
         filename, 
         pagesize=A4,
-        leftMargin=20*mm,
-        rightMargin=20*mm,
-        topMargin=20*mm,
-        bottomMargin=20*mm
+        leftMargin=15*mm,
+        rightMargin=15*mm,
+        topMargin=15*mm,
+        bottomMargin=15*mm
     )
     elements = []
 
     # --- ШАПКА ---
     elements.append(Paragraph("LINZA.Detector", styles["title"]))
     elements.append(Spacer(1, 5))
-    elements.append(Paragraph("Структурированный отчет по видеофайлу", styles["normal"]))
+    elements.append(Paragraph("Структурированный отчет по видеофайлу", styles["centered"]))
     elements.append(Spacer(1, 15))
 
     elements.append(Paragraph("Общая информация:", styles["heading"]))
 
     # Данные
     elements.append(Paragraph(f"Источник: {source_info.video_path}", styles["normal"]))
-    elements.append(Paragraph(f"Длительность: {source_info.video_duration_seconds} сек.", styles["normal"]))
+    elements.append(Spacer(1, 5))
+    elements.append(Paragraph(f"Длительность: {source_info.video_duration_formatted}", styles["normal"]))
+    elements.append(Spacer(1, 5))
     elements.append(Paragraph(f"Дата анализа: {source_info.analysis_timestamp}", styles["normal"]))
+    elements.append(Spacer(1, 5))
+    elements.append(Paragraph(f"Время обработки: {source_info.processing_time_seconds} сек.", styles["normal"])) 
+    elements.append(Spacer(1, 5))
     elements.append(Paragraph(f"Всего сцен: {source_info.frameCount}", styles["normal"]))
-    elements.append(Paragraph(f"Проблемных сцен: {source_info.fps}", styles["normal"]))
+    # elements.append(Spacer(1, 5))
+    # elements.append(Paragraph(f"Проблемных сцен: {source_info.fps}", styles["normal"]))
 
     elements.append(Spacer(1, 15))
     # --- РЕЗУЛЬТАТ ТЕСТА (Центрирование) ---
@@ -272,4 +307,8 @@ def generate_pdf(filename, sections, source_info=None, stats: dict[str, int]=Non
     for section in sections:
         render_section(elements, section)
 
-    doc.build(elements)
+    doc.build(
+        elements,
+        onFirstPage=add_page_number,
+        onLaterPages=add_page_number
+    )

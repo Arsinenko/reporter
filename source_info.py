@@ -1,4 +1,5 @@
 import json
+from detection import format_time
 
 
 class SourceInfo:

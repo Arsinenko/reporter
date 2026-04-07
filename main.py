@@ -4,6 +4,7 @@ from parser import parse_json
 from detection import get_by_subclasses, get_count_by_subclasses
 from aliaces import CategoryAliases, DETECTION_NAMES_RU
 from tables import ProblemsTableRow, StatusTableRow
+import argparse
 
 def generate_status_table(subclasses: List[str]):
     return [
@@ -24,7 +25,12 @@ def generate_problems_table(subclasses: List[str]):
         ) for d in get_by_subclasses(result.detections, subclasses)
     ]
 
-result = parse_json("result.json")
+parser = argparse.ArgumentParser(description="Generate report for LINZA.Detector")
+parser.add_argument("input", type=str, help="Path to input file")
+parser.add_argument("output", type=str, help="Path to output file")
+args = parser.parse_args()
+
+result = parse_json(args.input)
 
 general_test_status = len(result.detections) > 0
 drugs_subclasses = [CategoryAliases.DRUGS, CategoryAliases.DRUGS_KIDS, CategoryAliases.SMOKING, CategoryAliases.ALCOHOL]
@@ -64,25 +70,25 @@ sections = [
         "problems_table": drugs_group_problems_table
     },
     {
-        "title": "Девиантное поведение",
+        "title": "Девиантное и асоциальное поведение",
         "status": deviant_behavior_group_total_status,
         "status_table": deviant_behavior_group_status_table,
         "problems_table": deviant_behavior_group_problems_table
     },
     {
-        "title": "Лудомания",
+        "title": "Тотализаторы, букмейкеры и казино (лудомания)",
         "status": ludomania_group_total_status,
         "status_table": ludomania_group_status_table,
         "problems_table": ludomania_group_problems_table
     },
     {
-        "title": "Экстремизм",
+        "title": "Терроризм, нацизм и экстремизм",
         "status": extremism_group_total_status,
         "status_table": extremism_group_status_table,
         "problems_table": extremism_group_problems_table
     },
     {
-        "title": "Информация эротического характера",
+        "title": "Эротика, порно",
         "status": nude_group_total_status,
         "status_table": nude_group_status_table,
         "problems_table": nude_group_problems_table
@@ -90,16 +96,11 @@ sections = [
 ]
 
 report_stats = {
-    "Наркотические вещества, курение, инъекции": get_count_by_subclasses(result.detections, drugs_subclasses),
-    "Девиантное поведение": get_count_by_subclasses(result.detections, deviant_behavior_subclasses),
-    "Лудомания": get_count_by_subclasses(result.detections, ludomania_subclasses),
-    "Экстремизм, антипатриотизм, иноагенты": get_count_by_subclasses(result.detections, extremism_subclasses),
-    "Информация эротического характера": get_count_by_subclasses(result.detections, nude_subclasses)
+    "Наркотические вещества...": get_count_by_subclasses(result.detections, drugs_subclasses),
+    "Девиантное и асоциальное ...": get_count_by_subclasses(result.detections, deviant_behavior_subclasses),
+    "Тотализаторы, букмейкеры...": get_count_by_subclasses(result.detections, ludomania_subclasses),
+    "Экстремизм....": get_count_by_subclasses(result.detections, extremism_subclasses),
+    "Эротика, порно": get_count_by_subclasses(result.detections, nude_subclasses)
 }
 
-
-# =======================
-# ВЫЗОВ
-# =======================
-
-generate_pdf("report.pdf", sections, result.source_info, report_stats)
+generate_pdf(args.output, sections, result.source_info, report_stats)
