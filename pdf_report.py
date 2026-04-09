@@ -54,7 +54,13 @@ body { background: var(--linza-bg); font-size: 13px; line-height: 1.5; }
   border-radius: 14px;
   padding: 18px 20px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
-  position: relative;
+  margin-bottom: 20px;
+}
+
+/* Разрыв страницы после графика */
+.chart-container {
+  break-after: page;
+  overflow: visible !important; /* Важно, чтобы текст не обрезался */
 }
 
 .report-header {
@@ -69,14 +75,13 @@ body { background: var(--linza-bg); font-size: 13px; line-height: 1.5; }
 .logo-name { font-size: 22px; font-weight: 800; color: var(--linza-blue); letter-spacing: -0.04em; }
 .logo-sub { font-size: 11px; color: var(--linza-text-secondary); font-weight: 500; }
 
-/* Стили статусов (общие для таблицы и заголовка) */
-.td-status-pass { color: var(--linza-green); font-weight: 700; }
-.td-status-fail { color: var(--linza-red);   font-weight: 700; }
+.td-status-pass { color: var(--linza-green); font-weight: 700; text-transform: uppercase; }
+.td-status-fail { color: var(--linza-red);   font-weight: 700; text-transform: uppercase; }
 
 .meta-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 20px; }
 .meta-item { background: var(--linza-surface); border: 1px solid var(--linza-border); border-radius: 10px; padding: 12px 14px; }
 .meta-item__label { font-size: 10px; font-weight: 600; color: var(--linza-text-muted); text-transform: uppercase; margin-bottom: 4px; }
-.meta-item__value { font-size: 13px; font-weight: 600; word-break: break-all; }
+.meta-item__value { font-size: 12px; font-weight: 600; word-break: break-all; color: var(--linza-text-heading); }
 
 .section { margin-bottom: 24px; }
 .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; break-after: avoid; }
@@ -86,7 +91,7 @@ body { background: var(--linza-bg); font-size: 13px; line-height: 1.5; }
 .badge--red   { background: rgba(239,68,68,0.07);  border-color: rgba(239,68,68,0.15);  color: var(--linza-red); }
 
 table { width: 100%; border-collapse: collapse; font-size: 11px; }
-th { background: rgba(0,0,0,0.03); color: var(--linza-text-secondary); font-size: 10px; padding: 7px 10px; text-align: left; }
+th { background: rgba(0,0,0,0.03); color: var(--linza-text-secondary); font-size: 10px; padding: 7px 10px; text-align: left; text-transform: uppercase; }
 td { padding: 7px 10px; border-bottom: 1px solid var(--linza-border); }
 .row-pass td { background: rgba(16,185,129,0.03); }
 .row-fail td { background: rgba(239,68,68,0.03); }
@@ -98,7 +103,56 @@ td { padding: 7px 10px; border-bottom: 1px solid var(--linza-border); }
 """
 
 # ──────────────────────────────────────────────────────────────────────────────
-# Helpers
+# SVG Chart Logic
+# ──────────────────────────────────────────────────────────────────────────────
+
+def _build_svg_chart(stats: dict[str, int]) -> str:
+    if not stats: return ""
+    categories = list(stats.keys())
+    values = list(stats.values())
+    max_val = max(values) if values else 1
+    
+    # Значительно увеличили H (высоту холста) и pB (нижний отступ)
+    # W увеличили, чтобы последняя подпись влезла по горизонтали
+    W, H = 800, 550 
+    pL, pR, pT, pB = 60, 150, 30, 300 
+    chart_w, chart_h = W - pL - pR, H - pT - pB
+    n = len(categories)
+    gap = 18
+    bar_w = max(20, (chart_w - gap * (n + 1)) // n)
+
+    svg = [f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; overflow:visible;">']
+    
+    # Сетка
+    for i in range(6):
+        y = pT + chart_h - i * chart_h // 5
+        gv = round(max_val * i / 5)
+        svg.append(f'<line x1="{pL}" y1="{y}" x2="{W-pR}" y2="{y}" stroke="#e2e5ef" stroke-width="1"/>')
+        svg.append(f'<text x="{pL-10}" y="{y+4}" text-anchor="end" font-size="11" fill="#8a90b8" font-family="sans-serif">{gv}</text>')
+
+    # Столбцы
+    for i, (cat, val) in enumerate(zip(categories, values)):
+        bw_h = int(val / max_val * chart_h) if max_val else 0
+        x = pL + gap + i * (bar_w + gap)
+        y = pT + chart_h - bw_h
+        
+        svg.append(f'<rect x="{x}" y="{y}" width="{bar_w}" height="{bw_h}" rx="3" fill="#3a6cd0" opacity="0.8"/>')
+        svg.append(f'<text x="{x + bar_w//2}" y="{y-6}" text-anchor="middle" font-size="11" font-weight="700" fill="#283050" font-family="sans-serif">{val}</text>')
+        
+        # Названия категорий
+        lx = x + bar_w // 2
+        ly = pT + chart_h + 12
+        # Используем 60 градусов для лучшей читаемости длинных строк
+        svg.append(
+            f'<text transform="rotate(60, {lx}, {ly})" x="{lx}" y="{ly}" '
+            f'font-size="10" fill="#5a6494" text-anchor="start" font-family="sans-serif">{_html.escape(cat)}</text>'
+        )
+
+    svg.append('</svg>')
+    return "\n".join(svg)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Остальная логика без изменений
 # ──────────────────────────────────────────────────────────────────────────────
 
 def _e(s: Any) -> str:
@@ -118,10 +172,10 @@ def _build_status_table(rows) -> str:
             f'<td>{_e(row.founded)}</td>'
             f'</tr>'
         )
-    return f'<div class="card" style="padding:0;"><table><thead><tr><th>№</th><th>Параметр</th><th>Статус</th><th>Обнаружено</th></tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+    return f'<div class="card" style="padding:0; overflow:hidden;"><table><thead><tr><th>№</th><th>Параметр</th><th>Статус</th><th>Обнаружено</th></tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
 
 def _build_problems_table(rows) -> str:
-    if not rows: return '<p style="font-size:11px;color:var(--linza-text-muted);">Нарушений не обнаружено</p>'
+    if not rows: return '<p style="font-size:11px;color:var(--linza-text-muted);padding:5px;">Нарушений не обнаружено</p>'
     rows_html = []
     for row in rows:
         conf = float(getattr(row, "confidence", 0))
@@ -130,31 +184,32 @@ def _build_problems_table(rows) -> str:
             f'<td><div style="display:flex;align-items:center;gap:8px;"><div class="confidence-bar-track"><div class="confidence-bar-fill" style="width:{int(conf*100)}%"></div></div>'
             f'<span style="font-size:10px;font-weight:600;">{conf:.3f}</span></div></td></tr>'
         )
-    return f'<div class="card" style="padding:0;"><table><thead><tr><th>Категория</th><th>Начало</th><th>Конец</th><th>Уверенность</th></tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
+    return f'<div class="card" style="padding:0; overflow:hidden;"><table><thead><tr><th>Категория</th><th>Начало</th><th>Конец</th><th>Уверенность</th></tr></thead><tbody>{"".join(rows_html)}</tbody></table></div>'
 
-# ──────────────────────────────────────────────────────────────────────────────
-# Основной строитель HTML
-# ──────────────────────────────────────────────────────────────────────────────
-
-def _build_html(sections, source_info, stats) -> str:
-    # Определяем глобальный статус
+def _build_html(sections, source_info, stats, report_for: str) -> str:
     global_failed = any(s["status"] for s in sections)
-    
-    # ПРИМЕНЯЕМ СТИЛЬ КАК В ТАБЛИЦЕ
     header_status_cls = "td-status-fail" if global_failed else "td-status-pass"
-    result_label = "ПРОВАЛЕНО" if global_failed else "УСПЕШНО"
+    result_label = "Провалено" if global_failed else "Успешно"
 
     si = source_info
     meta_items = [
+        ("Отчет для", report_for or "—"),
         ("Источник", getattr(si, "video_path", "—")),
-        ("Длительность", getattr(si, "video_duration_formatted", "—")),
         ("Дата анализа", getattr(si, "analysis_timestamp", "—")),
+        ("Длительность", getattr(si, "video_duration_formatted", "—")),
         ("Время обработки", f'{getattr(si, "processing_time_seconds", 0) / 60:.1f} мин'),
         ("Всего сцен", getattr(si, "frameCount", "—")),
-        ("Итог", result_label),
     ]
-    
     meta_html = "".join(f'<div class="meta-item"><div class="meta-item__label">{_e(k)}</div><div class="meta-item__value">{_e(v)}</div></div>' for k, v in meta_items)
+
+    chart_html = ""
+    if stats:
+        chart_html = (
+            f'<div class="card chart-container">'
+            f'<div class="heading-sm" style="margin-bottom:15px; color:var(--linza-text-heading);">Статистика нарушений по категориям</div>'
+            f'{_build_svg_chart(stats)}'
+            f'</div>'
+        )
 
     sections_html = ""
     for sec in sections:
@@ -169,26 +224,21 @@ def _build_html(sections, source_info, stats) -> str:
         )
 
     return f"""<!DOCTYPE html>
-<html lang="ru">
-<head><meta charset="UTF-8"><style>{_CSS}</style></head>
+<html lang="ru"><head><meta charset="UTF-8"><style>{_CSS}</style></head>
 <body>
   <div class="report-header">
     <div class="logo-block">
       <span class="logo-name">LINZA.Detector</span><br>
       <span class="logo-sub">Структурированный отчет по видеофайлу</span>
     </div>
-    <!-- ИСПОЛЬЗУЕМ КЛАСС ИЗ ТАБЛИЦЫ ДЛЯ ЗАГОЛОВКА -->
-    <div class="{header_status_cls}" style="font-size: 16px; letter-spacing: 0.05em; text-align: right;">
-      {result_label}
-    </div>
+    <div class="{header_status_cls}" style="font-size: 16px;">{result_label.upper()}</div>
   </div>
   <div class="meta-grid">{meta_html}</div>
+  {chart_html}
   {sections_html}
-</body>
-</html>"""
+</body></html>"""
 
-def generate_pdf(filename: str, sections: list, source_info=None, stats: Optional[dict] = None) -> None:
+def generate_pdf(filename: str, sections: list, source_info=None, stats: Optional[dict] = None, report_for: str = "Система мониторинга") -> None:
     from weasyprint import HTML
-    html_content = _build_html(sections, source_info, stats)
+    html_content = _build_html(sections, source_info, stats, report_for)
     HTML(string=html_content).write_pdf(filename)
-    print(f"[generate_pdf] Сохранено → {filename}")

@@ -96,10 +96,10 @@ sections = [
 ]
 
 report_stats = {
-    "Наркотические вещества...": get_count_by_subclasses(result.detections, drugs_subclasses),
-    "Девиантное и асоциальное ...": get_count_by_subclasses(result.detections, deviant_behavior_subclasses),
-    "Тотализаторы, букмейкеры...": get_count_by_subclasses(result.detections, ludomania_subclasses),
-    "Экстремизм....": get_count_by_subclasses(result.detections, extremism_subclasses),
+    "Наркотические вещества, курение, инъекции": get_count_by_subclasses(result.detections, drugs_subclasses),
+    "Девиантное и асоциальное поведение": get_count_by_subclasses(result.detections, deviant_behavior_subclasses),
+    "Тотализаторы, букмейкеры и казино (лудомания)": get_count_by_subclasses(result.detections, ludomania_subclasses),
+    "Терроризм, нацизм и экстремизм": get_count_by_subclasses(result.detections, extremism_subclasses),
     "Эротика, порно": get_count_by_subclasses(result.detections, nude_subclasses)
 }
 
