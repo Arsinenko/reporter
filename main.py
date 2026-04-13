@@ -16,7 +16,7 @@ def generate_status_table(subclasses: List[str]):
     ]
 
 def generate_problems_table(subclasses: List[str]):
-    return [
+    table = [
         ProblemsTableRow(
             category=DETECTION_NAMES_RU[d.subclass],
             start_time=d.startFrame,
@@ -24,6 +24,8 @@ def generate_problems_table(subclasses: List[str]):
             confidence=d.confidence
         ) for d in get_by_subclasses(result.detections, subclasses)
     ]
+    table.sort(key=lambda x: x.category)
+    return table
 
 parser = argparse.ArgumentParser(description="Generate report for LINZA.Detector")
 parser.add_argument("input", type=str, help="Path to input file")
